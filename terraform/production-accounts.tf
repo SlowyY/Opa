@@ -111,3 +111,45 @@ module "nuclea-teste1-PRD" {
 
   account_customizations_name = "production-customizations"
 }
+
+# ---- AFT GENERATED START: nuclea-abacaxi-prd ----
+module "nuclea-abacaxi-prd" {
+  source = "./modules/aft-account-request"
+
+  control_tower_parameters = {
+    AccountEmail               = "nuclea-aws-accounts+nuclea-abacaxi-prd@nuclea.com.br"
+    AccountName                = "nuclea-abacaxi-prd"
+    ManagedOrganizationalUnit  = "PRD (ou-v72j-awvhvkga)"
+    SSOUserEmail               = "sustentacaocloud@nuclea.com.br"
+    SSOUserFirstName           = "Sustentacao"
+    SSOUserLastName            = "Cloud"
+  }
+
+  account_tags = {
+    "Centro de Custo" = "55566"
+    "Serviço"         = "56585"
+    "Finalidade"      = "65656"
+    "Conta Contabil"  = "585858"
+    "Ambiente"        = "PRD"
+    "backup"          = "yes"
+    "deployedBy"      = "AFT"
+  }
+
+  change_management_parameters = {
+    change_requested_by = "Cloud Sustentacao"
+    change_reason       = "Conta criada a partir do módulo account-request do AFT"
+  }
+
+  custom_fields = merge(local.aft_environment_parameters_saopaulo, {
+    ipam_pool_id     = "ipam-pool-prd-0001"
+    dns_private_zone = "nuclea-abacaxi-prd"
+    atlas_account    = false
+    account_name     = "nuclea-abacaxi-prd"
+    cloudflow_enable = false
+  })
+
+  account_customizations_name = "production-customizations"
+}
+
+# ---- AFT GENERATED END:   nuclea-abacaxi-prd ----
+
