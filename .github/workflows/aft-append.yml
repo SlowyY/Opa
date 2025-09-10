@@ -1,0 +1,82 @@
+name: AFT Append Module
+
+on:
+  repository_dispatch:
+    types: [aft-append]
+
+permissions:
+  contents: write   # necessário para commit/push
+
+concurrency:
+  group: aft-append-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  append:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true  # usa GITHUB_TOKEN
+
+      - name: Determinar arquivo por ambiente
+        id: map
+        run: |
+          env="${{ github.event.client_payload.ambiente }}"
+          case "$env" in
+            lab) file="terraform/laboratory-accounts.tf" ;;
+            dev) file="terraform/development-accounts.tf" ;;
+            hml) file="terraform/staging-accounts.tf" ;;
+            prd) file="terraform/production-accounts.tf" ;;
+            *)   echo "Ambiente inválido: $env"; exit 1 ;;
+          esac
+          echo "file=$file" >> $GITHUB_OUTPUT
+
+      - name: Preparar bloco HCL com delimitadores
+        id: hcl
+        env:
+          HCL: ${{ github.event.client_payload.hcl }}
+        run: |
+          # label a partir do module "name"
+          lbl=$(printf "%s" "$HCL" | sed -n 's/.*module[[:space:]]*\"\([^\"]\+\)\".*/\1/p' | head -n1)
+          [ -z "$lbl" ] && lbl="aft-module-${RANDOM}"
+          {
+            printf "\n# ---- AFT GENERATED START: %s ----\n" "$lbl"
+            printf "%s\n" "$HCL" | sed -e 's/\r$//'
+            printf "# ---- AFT GENERATED END:   %s ----\n\n" "$lbl"
+          } > wrapped.tf
+          echo "label=$lbl" >> $GITHUB_OUTPUT
+
+      - name: Evitar duplicado
+        id: dedup
+        run: |
+          file="${{ steps.map.outputs.file }}"
+          lbl="${{ steps.hcl.outputs.label }}"
+          mkdir -p "$(dirname "$file")"
+          touch "$file"
+          if grep -q "AFT GENERATED START: ${lbl}" "$file"; then
+            echo "duplicate=true" >> $GITHUB_OUTPUT
+          else
+            echo "duplicate=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Anexar bloco
+        if: steps.dedup.outputs.duplicate == 'false'
+        run: |
+          file="${{ steps.map.outputs.file }}"
+          tmp="$(mktemp)"
+          cp "$file" "$tmp"
+          # garante \n final
+          tail -c1 "$tmp" | od -An -t o1 | grep -q '012' || echo >> "$tmp"
+          cat wrapped.tf >> "$tmp"
+          mv "$tmp" "$file"
+
+      - name: Commit & push
+        if: steps.dedup.outputs.duplicate == 'false'
+        run: |
+          git config user.name  "aft-bot"
+          git config user.email "aft-bot@users.noreply.github.com"
+          git add "${{ steps.map.outputs.file }}"
+          git commit -m "AFT: append ${{ steps.hcl.outputs.label }} to ${{ steps.map.outputs.file }}"
+          git push
