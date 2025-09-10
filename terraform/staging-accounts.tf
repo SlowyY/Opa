@@ -111,3 +111,45 @@ module "nuclea-teste1-HML" {
 
   account_customizations_name = "staging-customizations"
 }
+
+# ---- AFT GENERATED START: nuclea-abacaxi-hml ----
+module "nuclea-abacaxi-hml" {
+  source = "./modules/aft-account-request"
+
+  control_tower_parameters = {
+    AccountEmail               = "nuclea-aws-accounts+nuclea-abacaxi-hml@nuclea.com.br"
+    AccountName                = "nuclea-abacaxi-hml"
+    ManagedOrganizationalUnit  = "HML (ou-v72j-z0h2jwei)"
+    SSOUserEmail               = "sustentacaocloud@nuclea.com.br"
+    SSOUserFirstName           = "Sustentacao"
+    SSOUserLastName            = "Cloud"
+  }
+
+  account_tags = {
+    "Centro de Custo" = "124"
+    "Serviço"         = "3124"
+    "Finalidade"      = "4321"
+    "Conta Contabil"  = "2314"
+    "Ambiente"        = "HML"
+    "backup"          = "yes"
+    "deployedBy"      = "AFT"
+  }
+
+  change_management_parameters = {
+    change_requested_by = "Cloud Sustentacao"
+    change_reason       = "Conta criada a partir do módulo account-request do AFT"
+  }
+
+  custom_fields = merge(local.aft_environment_parameters_virginia, {
+    ipam_pool_id     = "ipam-pool-hml-0001"
+    dns_private_zone = "nuclea-abacaxi-hml"
+    atlas_account    = false
+    account_name     = "nuclea-abacaxi-hml"
+    cloudflow_enable = false
+  })
+
+  account_customizations_name = "staging-customizations"
+}
+
+# ---- AFT GENERATED END:   nuclea-abacaxi-hml ----
+
