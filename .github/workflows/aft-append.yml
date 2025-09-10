@@ -1,4 +1,5 @@
 name: AFT Append Module
+run-name: AFT Append (${{ github.event.client_payload.correlation_id }})
 
 on:
   repository_dispatch:
@@ -7,7 +8,6 @@ on:
 permissions:
   contents: write
 
-# Serializa por ambiente (uma execução por vez para dev/hml/prd/lab)
 concurrency:
   group: aft-append-${{ github.event.client_payload.ambiente }}
   cancel-in-progress: false
@@ -35,67 +35,38 @@ jobs:
           esac
           echo "file=$file" >> $GITHUB_OUTPUT
 
-      - name: Extrair label e nomes (AccountName / account_name) do HCL
-        id: parse
+      - name: Preparar bloco HCL e label
+        id: prep
         env:
           HCL: ${{ github.event.client_payload.hcl }}
         run: |
-          # Label do módulo
           lbl=$(printf "%s" "$HCL" | sed -n 's/.*module[[:space:]]*\"\([^\"]\+\)\".*/\1/p' | head -n1)
           [ -z "$lbl" ] && lbl="aft-module-${RANDOM}"
-
-          # AccountName (control_tower_parameters)
-          acc1=$(printf "%s" "$HCL" | sed -n 's/.*AccountName[[:space:]]*=[[:space:]]*\"\([^\"]\+\)\".*/\1/p' | head -n1)
-
-          # account_name (custom_fields)
-          acc2=$(printf "%s" "$HCL" | sed -n 's/.*account_name[[:space:]]*=[[:space:]]*\"\([^\"]\+\)\".*/\1/p' | head -n1)
-
-          echo "label=$lbl" >> $GITHUB_OUTPUT
-          echo "account1=$acc1" >> $GITHUB_OUTPUT
-          echo "account2=$acc2" >> $GITHUB_OUTPUT
-
-          # Empacotar o bloco com delimitadores
           {
             printf "\n# ---- AFT GENERATED START: %s ----\n" "$lbl"
             printf "%s\n" "$HCL" | sed -e 's/\r$//'
             printf "# ---- AFT GENERATED END:   %s ----\n\n" "$lbl"
           } > wrapped.tf
+          echo "label=$lbl" >> $GITHUB_OUTPUT
 
-      - name: Verificar duplicidade no repo (label, module, AccountName/account_name)
+      - name: Duplicidade (label e AccountName/account_name em terraform/)
         id: dup
+        env:
+          HCL: ${{ github.event.client_payload.hcl }}
         run: |
           file="${{ steps.map.outputs.file }}"
-          lbl="${{ steps.parse.outputs.label }}"
-          acc1="${{ steps.parse.outputs.account1 }}"
-          acc2="${{ steps.parse.outputs.account2 }}"
+          lbl="${{ steps.prep.outputs.label }}"
+          mkdir -p "$(dirname "$file")"; touch "$file"
 
-          mkdir -p "$(dirname "$file")"
-          touch "$file"
-
-          dup="false"
-
-          # 1) Mesmo label já marcado por delimitador
-          if git grep -n --fixed-strings "AFT GENERATED START: ${lbl}" -- terraform >/dev/null 2>&1; then
-            dup="true"
-          fi
-
-          # 2) Outro bloco/manual com module "<label>"
-          if [ "$dup" = "false" ] && git grep -n -E "module[[:space:]]+\"${lbl}\"[[:space:]]*\\{" -- terraform >/dev/null 2>&1; then
-            dup="true"
-          fi
-
-          # 3) AccountName/account_name já presente (qualquer arquivo terraform)
-          if [ "$dup" = "false" ] && [ -n "$acc1" ] && git grep -n --fixed-strings "\"${acc1}\"" -- terraform >/dev/null 2>&1; then
-            dup="true"
-          fi
-          if [ "$dup" = "false" ] && [ -n "$acc2" ] && git grep -n --fixed-strings "\"${acc2}\"" -- terraform >/dev/null 2>&1; then
-            dup="true"
-          fi
-
+          dup=false
+          if git grep -n --fixed-strings "AFT GENERATED START: ${lbl}" -- terraform >/dev/null 2>&1; then dup=true; fi
+          if [ "$dup" = false ] && git grep -n -E "module[[:space:]]+\"${lbl}\"[[:space:]]*\\{" -- terraform >/dev/null 2>&1; then dup=true; fi
+          acc1=$(printf "%s" "$HCL" | sed -n 's/.*AccountName[[:space:]]*=[[:space:]]*\"\([^\"]\+\)\".*/\1/p' | head -n1)
+          acc2=$(printf "%s" "$HCL" | sed -n 's/.*account_name[[:space:]]*=[[:space:]]*\"\([^\"]\+\)\".*/\1/p' | head -n1)
+          if [ "$dup" = false ] && [ -n "$acc1" ] && git grep -n --fixed-strings "\"${acc1}\"" -- terraform >/dev/null 2>&1; then dup=true; fi
+          if [ "$dup" = false ] && [ -n "$acc2" ] && git grep -n --fixed-strings "\"${acc2}\"" -- terraform >/dev/null 2>&1; then dup=true; fi
           echo "duplicate=$dup" >> $GITHUB_OUTPUT
-          if [ "$dup" = "true" ]; then
-            echo "⚠️ Já existe módulo/recurso com mesmo label/AccountName/account_name. Pulando append."
-          fi
+          if [ "$dup" = true ]; then echo "🔁 Duplicado. Nada será anexado."; fi
 
       - name: Anexar bloco
         if: steps.dup.outputs.duplicate == 'false'
@@ -103,7 +74,6 @@ jobs:
           file="${{ steps.map.outputs.file }}"
           tmp="$(mktemp)"
           cp "$file" "$tmp"
-          # garante quebra de linha final
           tail -c1 "$tmp" | od -An -t o1 | grep -q '012' || echo >> "$tmp"
           cat wrapped.tf >> "$tmp"
           mv "$tmp" "$file"
@@ -114,7 +84,6 @@ jobs:
           git config user.name  "aft-bot"
           git config user.email "aft-bot@users.noreply.github.com"
           git add "${{ steps.map.outputs.file }}"
-          git commit -m "AFT: append ${{ steps.parse.outputs.label }} to ${{ steps.map.outputs.file }}"
-          # pull rebase + retry simples pra evitar race rara
+          git commit -m "AFT: append ${{ steps.prep.outputs.label }} to ${{ steps.map.outputs.file }}"
           git pull --rebase || true
           git push
