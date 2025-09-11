@@ -87,3 +87,21 @@ jobs:
           git commit -m "AFT: append ${{ steps.prep.outputs.label }} to ${{ steps.map.outputs.file }}"
           git pull --rebase || true
           git push
+
+      - name: RESULT_APPENDED
+        if: steps.dup.outputs.duplicate == 'false'
+        run: echo "OK - bloco anexado"
+
+      - name: RESULT_DUPLICATE
+        if: steps.dup.outputs.duplicate == 'true'
+        run: echo "DUPLICATE - bloco já existente, nada alterado"
+
+      - name: Summary
+        run: |
+          if [ "${{ steps.dup.outputs.duplicate }}" = "true" ]; then
+            echo "### Resultado: **duplicado**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### Resultado: **anexado**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+    
