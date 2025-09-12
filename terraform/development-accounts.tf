@@ -111,3 +111,45 @@ module "nuclea-teste1-dev" {
 
   account_customizations_name = "development-customizations"
 }
+
+# ---- AFT GENERATED START: nuclea-abacaxi-dev ----
+module "nuclea-abacaxi-dev" {
+  source = "./modules/aft-account-request"
+
+  control_tower_parameters = {
+    AccountEmail               = "nuclea-aws-accounts+nuclea-abacaxi-dev@nuclea.com.br"
+    AccountName                = "nuclea-abacaxi-dev"
+    ManagedOrganizationalUnit  = "DEV (ou-v72j-ptu2mxaa)"
+    SSOUserEmail               = "sustentacaocloud@nuclea.com.br"
+    SSOUserFirstName           = "Sustentacao"
+    SSOUserLastName            = "Cloud"
+  }
+
+  account_tags = {
+    "Centro de Custo" = "656"
+    "Serviço"         = "656"
+    "Finalidade"      = "656"
+    "Conta Contabil"  = "65656"
+    "Ambiente"        = "DEV"
+    "backup"          = "yes"
+    "deployedBy"      = "AFT"
+  }
+
+  change_management_parameters = {
+    change_requested_by = "Cloud Sustentacao"
+    change_reason       = "Conta criada a partir do módulo account-request do AFT"
+  }
+
+  custom_fields = merge(local.aft_environment_parameters_virginia, {
+    ipam_pool_id     = "ipam-pool-dev-0001"
+    dns_private_zone = "nuclea-abacaxi-dev"
+    atlas_account    = false
+    account_name     = "nuclea-abacaxi-dev"
+    cloudflow_enable = false
+  })
+
+  account_customizations_name = "development-customizations"
+}
+
+# ---- AFT GENERATED END:   nuclea-abacaxi-dev ----
+
